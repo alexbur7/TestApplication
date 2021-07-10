@@ -1,21 +1,19 @@
 package com.example.testapplication
 
+import android.graphics.Color
 import android.os.Bundle
 import android.util.Log
 import androidx.appcompat.app.AppCompatActivity
-import com.example.testapplication.network.NetworkService
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.LatLng
-import com.google.gson.Gson
-import com.google.gson.GsonBuilder
+import com.google.android.gms.maps.model.PolylineOptions
 import com.google.gson.stream.JsonReader
 import com.google.gson.stream.JsonToken
 import io.reactivex.*
 import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.schedulers.Schedulers
-import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.net.URL
 
@@ -31,74 +29,85 @@ class MainActivity:AppCompatActivity(),OnMapReadyCallback {
         val mapFragment = supportFragmentManager
             .findFragmentById(R.id.map) as SupportMapFragment
         mapFragment.getMapAsync(this)
-         Observable.just(BASE_URL).map {
-            val inputStream = URL(it).openStream()
-             return@map JsonReader(InputStreamReader(inputStream, "UTF-8"))
-            }
-            .flatMap { jsonReader ->
-                return@flatMap Observable.create<LatLng> { emitter ->
-                    with(jsonReader) {
-                        while (hasNext()) {
-                            if (peek() == JsonToken.BEGIN_OBJECT) {
-                                beginObject()
-                            }
-                            if (nextName() == "features") {
-                                beginArray()
-                                while (hasNext()) {
-                                    if (peek() == JsonToken.BEGIN_OBJECT) {
-                                        beginObject()
-                                    }
-                                    if (nextName() == "geometry") {
-                                        beginObject()
-                                        while (hasNext()) {
-                                            if (nextName() == "coordinates") {
+    }
+
+    private fun createObservable() = Observable.just(BASE_URL).map {
+        val inputStream = URL(it).openStream()
+        return@map JsonReader(InputStreamReader(inputStream, "UTF-8"))
+    }
+        .flatMap { jsonReader ->
+            return@flatMap Observable.create<LatLng> { emitter ->
+                with(jsonReader) {
+                    while (hasNext()) {
+                        if (peek() == JsonToken.BEGIN_OBJECT) {
+                            beginObject()
+                        }
+                        if (nextName() == "features") {
+                            beginArray()
+                            while (hasNext()) {
+                                if (peek() == JsonToken.BEGIN_OBJECT) {
+                                    beginObject()
+                                }
+                                if (nextName() == "geometry") {
+                                    beginObject()
+                                    while (hasNext()) {
+                                        if (nextName() == "coordinates") {
+                                            beginArray()
+                                            while (hasNext()) {
+                                                beginArray()
                                                 beginArray()
                                                 while (hasNext()) {
                                                     beginArray()
-                                                    beginArray()
-                                                    while (hasNext()) {
-                                                        beginArray()
-                                                        val latLng =
-                                                            LatLng(nextDouble(), nextDouble())
-                                                        emitter.onNext(latLng)
-                                                        endArray()
-                                                    }
-                                                    endArray()
+                                                    val latitude = nextDouble()
+                                                    val longitude = nextDouble()
+                                                    val latLng =
+                                                        LatLng(longitude, latitude)
+                                                    emitter.onNext(latLng)
                                                     endArray()
                                                 }
                                                 endArray()
-                                            } else {
-                                                skipValue()
+                                                endArray()
                                             }
+                                            endArray()
+                                        } else {
+                                            skipValue()
                                         }
-                                        endObject()
-                                    } else {
-                                        skipValue()
                                     }
+                                    endObject()
+                                } else {
+                                    skipValue()
                                 }
-                                endObject()
-                                endArray()
-                            } else {
-                                skipValue()
                             }
+                            endObject()
+                            endArray()
+                        } else {
+                            skipValue()
                         }
-                        endObject()
-                        close()
-                        emitter.onComplete()
                     }
+                    endObject()
+                    close()
+                    emitter.onComplete()
                 }
             }
+        }
+
+    override fun onMapReady(googleMap: GoogleMap) {
+        val polylineOptions = PolylineOptions().apply {
+            color(Color.RED)
+        }
+        createObservable()
             .subscribeOn(Schedulers.io())
             .observeOn(AndroidSchedulers.mainThread())
             .subscribe({
-                Log.d("tut_onNext", "$it")
+                Log.d("tut_onNext",it.toString())
+                   polylineOptions.add(it)
             },{
-            Log.e("tut_error",it.message.toString())
-        },{
+                Log.e("tut_error",it.message.toString())
+            },{
+                googleMap.addPolyline(polylineOptions)
                 Log.d("tut_complete", "onComplete")
             })
+    }
 
-    }
-    override fun onMapReady(googleMap: GoogleMap) {
-    }
+
 }
