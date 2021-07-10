@@ -1,14 +1,11 @@
 package com.example.testapplication
 
-import com.google.android.gms.maps.model.LatLng
-import com.google.android.gms.maps.model.Polygon
+import com.google.gson.annotations.Expose
 import com.google.gson.annotations.SerializedName
-import org.json.JSONArray
-import org.json.JSONObject
 
 data class GeoModel(
     @SerializedName("type")
-    val type: String,
+    val type:String,
     @SerializedName("features")
     val featureModel: Array<FeatureModel>
 ) {
@@ -31,15 +28,14 @@ data class GeoModel(
     }
 }
 
+
 data class FeatureModel(
-    @SerializedName("type")
-    val type:String,
     @SerializedName("geometry")
     val geometry: GeometryModel
 )
 data class GeometryModel(
-    @SerializedName("type")
-    val type:String,
     @SerializedName("coordinates")
     val multiPolygon: List<List<List<List<Double>>>>
     )
+
+data class LatLong(val lat:Double, val long:Double)

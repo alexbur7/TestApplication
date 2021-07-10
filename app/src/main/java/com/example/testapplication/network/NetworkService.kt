@@ -10,7 +10,8 @@ import retrofit2.converter.gson.GsonConverterFactory
 object NetworkService {
     private const val BASE_URL = "https://waadsu.com/"
     private val httpClient = OkHttpClient()
-    private val gson = GsonBuilder().create()
+    private val gson = GsonBuilder().apply {
+    }.create()
     private val retrofit = Retrofit.Builder()
         .addConverterFactory(GsonConverterFactory.create(gson))
         .addCallAdapterFactory(RxJava2CallAdapterFactory.createWithScheduler(Schedulers.io()))
