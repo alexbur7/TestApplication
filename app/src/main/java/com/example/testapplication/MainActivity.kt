@@ -3,25 +3,28 @@ package com.example.testapplication
 import android.graphics.Color
 import android.os.Bundle
 import android.util.Log
+import android.view.View
+import android.widget.Button
+import android.widget.ProgressBar
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.PolylineOptions
-import com.google.gson.stream.JsonReader
-import com.google.gson.stream.JsonToken
-import io.reactivex.*
+import io.reactivex.Observer
 import io.reactivex.android.schedulers.AndroidSchedulers
+import io.reactivex.disposables.Disposable
 import io.reactivex.schedulers.Schedulers
-import java.io.InputStreamReader
-import java.net.URL
 
 class MainActivity:AppCompatActivity(),OnMapReadyCallback {
 
-    private companion object{
-        const val BASE_URL = "https://waadsu.com/api/russia.geo.json"
-    }
+    private var progressBar:ProgressBar? = null
+    private var restartButton:Button? = null
+    private var googleMap:GoogleMap? = null
+    private val observable by lazy { DownloadCoordinatesManager().createObservable() }
+    private var disposable:Disposable? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -29,85 +32,60 @@ class MainActivity:AppCompatActivity(),OnMapReadyCallback {
         val mapFragment = supportFragmentManager
             .findFragmentById(R.id.map) as SupportMapFragment
         mapFragment.getMapAsync(this)
-    }
-
-    private fun createObservable() = Observable.just(BASE_URL).map {
-        val inputStream = URL(it).openStream()
-        return@map JsonReader(InputStreamReader(inputStream, "UTF-8"))
-    }
-        .flatMap { jsonReader ->
-            return@flatMap Observable.create<LatLng> { emitter ->
-                with(jsonReader) {
-                    while (hasNext()) {
-                        if (peek() == JsonToken.BEGIN_OBJECT) {
-                            beginObject()
-                        }
-                        if (nextName() == "features") {
-                            beginArray()
-                            while (hasNext()) {
-                                if (peek() == JsonToken.BEGIN_OBJECT) {
-                                    beginObject()
-                                }
-                                if (nextName() == "geometry") {
-                                    beginObject()
-                                    while (hasNext()) {
-                                        if (nextName() == "coordinates") {
-                                            beginArray()
-                                            while (hasNext()) {
-                                                beginArray()
-                                                beginArray()
-                                                while (hasNext()) {
-                                                    beginArray()
-                                                    val latitude = nextDouble()
-                                                    val longitude = nextDouble()
-                                                    val latLng =
-                                                        LatLng(longitude, latitude)
-                                                    emitter.onNext(latLng)
-                                                    endArray()
-                                                }
-                                                endArray()
-                                                endArray()
-                                            }
-                                            endArray()
-                                        } else {
-                                            skipValue()
-                                        }
-                                    }
-                                    endObject()
-                                } else {
-                                    skipValue()
-                                }
-                            }
-                            endObject()
-                            endArray()
-                        } else {
-                            skipValue()
-                        }
-                    }
-                    endObject()
-                    close()
-                    emitter.onComplete()
-                }
-            }
+        progressBar = findViewById(R.id.progress_circular)
+        restartButton = findViewById(R.id.restart_download)
+        restartButton?.setOnClickListener {
+            progressBar?.visibility = View.VISIBLE
+            it.visibility = View.GONE
+            downloadData()
         }
+    }
 
     override fun onMapReady(googleMap: GoogleMap) {
-        val polylineOptions = PolylineOptions().apply {
-            color(Color.RED)
-        }
-        createObservable()
-            .subscribeOn(Schedulers.io())
-            .observeOn(AndroidSchedulers.mainThread())
-            .subscribe({
-                Log.d("tut_onNext",it.toString())
-                   polylineOptions.add(it)
-            },{
-                Log.e("tut_error",it.message.toString())
-            },{
-                googleMap.addPolyline(polylineOptions)
-                Log.d("tut_complete", "onComplete")
-            })
+        this.googleMap = googleMap
+        downloadData()
     }
 
+    private fun downloadData() {
+        observable
+            .subscribeOn(Schedulers.io())
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe(createObserver())
+    }
+
+    private fun createObserver(): Observer<List<LatLng>> =
+        object : Observer<List<LatLng>>{
+            override fun onNext(data: List<LatLng>) {
+                val polylineOptions = PolylineOptions().apply {
+                    color(Color.RED)
+                    addAll(data)
+                }
+                googleMap?.addPolyline(polylineOptions)
+            }
+
+            override fun onError(e: Throwable) {
+                progressBar?.visibility = View.GONE
+                restartButton?.visibility = View.VISIBLE
+                Toast.makeText(this@MainActivity,this@MainActivity.
+                            getString(R.string.no_internet),Toast.LENGTH_SHORT ).show()
+                Log.e("tut_error",e.message.toString())
+            }
+
+            override fun onComplete() {
+                progressBar?.visibility = View.GONE
+            }
+
+            override fun onSubscribe(d: Disposable) {
+                disposable = d
+            }
+
+        }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        disposable?.dispose()
+        disposable = null
+        googleMap = null
+    }
 
 }
