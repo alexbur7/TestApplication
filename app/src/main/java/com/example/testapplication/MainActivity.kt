@@ -38,11 +38,13 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.main_activity)
+        // проверяем есть ли у нас уже загруженные данные
         if (savedInstanceState != null) {
             savedInstanceState.getParcelableArrayList<PolylineModel>(MULTI_POLYLINE_KEY)
                 ?.let { multiPolyline.addAll(it.toMutableList()) }
             distance = savedInstanceState.getDouble(DISTANCE_KEY)
         }
+        // добавление фрагмента с картой на экран
         val mapFragment = supportFragmentManager
             .findFragmentById(R.id.map) as SupportMapFragment
         mapFragment.getMapAsync(this)
@@ -58,9 +60,10 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
 
     override fun onMapReady(googleMap: GoogleMap) {
         this.googleMap = googleMap
+        //проверяем, если данные не загружены, то отправляем запрос на сервер
         if (multiPolyline.size == 0) {
             downloadData()
-        } else {
+        } else { //иначе отображаем данные из памяти
             distanceText?.run {
                 show()
                 text = this@MainActivity.getString(R.string.distance, distance.toString())
@@ -72,6 +75,7 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
         }
     }
 
+    // установка обсервера
     private fun downloadData() {
         observable
             .subscribeOn(Schedulers.io())
@@ -79,15 +83,18 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
             .subscribe(createObserver())
     }
 
+    // создание обсервера
     private fun createObserver(): Observer<PolylineModel> =
         object : Observer<PolylineModel> {
             override fun onNext(data: PolylineModel) {
                 drawMap(data)
+                //подсчет расстояния маршрута в километрах
                 distance += SphericalUtil.computeLength(data.coordinates) / 1000
                 multiPolyline.add(data)
             }
 
             override fun onError(e: Throwable) {
+                //очистка частично заполненных данных и вывод сообщения об ошибке загрузки
                 distance = 0.0
                 multiPolyline.clear()
                 progressBar?.gone()
@@ -100,6 +107,7 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
             }
 
             override fun onComplete() {
+                //закрытие окна загрузки и отображение текста с расстоянием
                 progressBar?.gone()
                 distanceText?.run {
                     show()
@@ -112,6 +120,7 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
             }
         }
 
+    // отрисовка маршрута
     private fun drawMap(data: PolylineModel) {
         val polylineOptions = PolylineOptions().apply {
             color(Color.RED)
@@ -120,7 +129,7 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
         googleMap?.addPolyline(polylineOptions)
     }
 
-
+    //сохранение всех данных, чтобы не загружать их повторно
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         outState.putParcelableArrayList(
@@ -130,6 +139,7 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
         outState.putDouble(DISTANCE_KEY, distance)
     }
 
+    // удаление ссылок
     override fun onDestroy() {
         super.onDestroy()
         disposable?.dispose()
