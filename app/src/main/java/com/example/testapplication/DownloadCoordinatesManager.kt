@@ -9,7 +9,7 @@ import java.net.URL
 
 class DownloadCoordinatesManager {
 
-    private companion object{
+    private companion object {
         const val BASE_URL = "https://waadsu.com/api/russia.geo.json"
     }
 

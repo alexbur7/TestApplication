@@ -19,27 +19,28 @@ import io.reactivex.disposables.Disposable
 import io.reactivex.schedulers.Schedulers
 import java.util.ArrayList
 
-class MainActivity:AppCompatActivity(),OnMapReadyCallback {
+class MainActivity : AppCompatActivity(), OnMapReadyCallback {
 
-    private companion object{
+    private companion object {
         const val MULTI_POLYLINE_KEY = "multi_polyline_key"
         const val DISTANCE_KEY = "distance_key"
     }
-    private var progressBar:ProgressBar? = null
-    private var restartButton:Button? = null
-    private var googleMap:GoogleMap? = null
+
+    private var progressBar: ProgressBar? = null
+    private var restartButton: Button? = null
+    private var googleMap: GoogleMap? = null
     private val observable by lazy { DownloadCoordinatesManager().createObservable() }
-    private var disposable:Disposable? = null
+    private var disposable: Disposable? = null
     private val multiPolyline = mutableListOf<PolylineModel>()
-    private var distance:Double = 0.0
-    private var distanceText:TextView? = null
+    private var distance: Double = 0.0
+    private var distanceText: TextView? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.main_activity)
-        if (savedInstanceState != null){
+        if (savedInstanceState != null) {
             savedInstanceState.getParcelableArrayList<PolylineModel>(MULTI_POLYLINE_KEY)
-                ?.let { multiPolyline.addAll(it.toMutableList())}
+                ?.let { multiPolyline.addAll(it.toMutableList()) }
             distance = savedInstanceState.getDouble(DISTANCE_KEY)
         }
         val mapFragment = supportFragmentManager
@@ -59,11 +60,10 @@ class MainActivity:AppCompatActivity(),OnMapReadyCallback {
         this.googleMap = googleMap
         if (multiPolyline.size == 0) {
             downloadData()
-        }
-        else{
-            distanceText?.run{
+        } else {
+            distanceText?.run {
                 show()
-                text = distance.toString()
+                text = this@MainActivity.getString(R.string.distance, distance.toString())
             }
             progressBar?.gone()
             multiPolyline.forEach { polylineModel ->
@@ -80,10 +80,10 @@ class MainActivity:AppCompatActivity(),OnMapReadyCallback {
     }
 
     private fun createObserver(): Observer<PolylineModel> =
-        object : Observer<PolylineModel>{
+        object : Observer<PolylineModel> {
             override fun onNext(data: PolylineModel) {
                 drawMap(data)
-                distance += SphericalUtil.computeLength(data.coordinates)/1000
+                distance += SphericalUtil.computeLength(data.coordinates) / 1000
                 multiPolyline.add(data)
             }
 
@@ -92,15 +92,18 @@ class MainActivity:AppCompatActivity(),OnMapReadyCallback {
                 multiPolyline.clear()
                 progressBar?.gone()
                 restartButton?.show()
-                Toast.makeText(this@MainActivity,this@MainActivity.
-                            getString(R.string.no_internet),Toast.LENGTH_SHORT ).show()
+                Toast.makeText(
+                    this@MainActivity,
+                    this@MainActivity.getString(R.string.no_internet),
+                    Toast.LENGTH_SHORT
+                ).show()
             }
 
             override fun onComplete() {
                 progressBar?.gone()
                 distanceText?.run {
                     show()
-                    text = distance.toString()
+                    text = this@MainActivity.getString(R.string.distance, distance.toString())
                 }
             }
 
@@ -120,10 +123,13 @@ class MainActivity:AppCompatActivity(),OnMapReadyCallback {
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
-        outState.putParcelableArrayList(MULTI_POLYLINE_KEY , multiPolyline
-                as ArrayList<out Parcelable>)
+        outState.putParcelableArrayList(
+            MULTI_POLYLINE_KEY, multiPolyline
+                    as ArrayList<out Parcelable>
+        )
         outState.putDouble(DISTANCE_KEY, distance)
     }
+
     override fun onDestroy() {
         super.onDestroy()
         disposable?.dispose()
