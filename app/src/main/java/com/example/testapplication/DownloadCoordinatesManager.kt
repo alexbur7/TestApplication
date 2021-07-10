@@ -13,12 +13,12 @@ class DownloadCoordinatesManager {
         const val BASE_URL = "https://waadsu.com/api/russia.geo.json"
     }
 
-    fun createObservable(): Observable<List<LatLng>> = Observable.just(BASE_URL).map {
+    fun createObservable(): Observable<PolylineModel> = Observable.just(BASE_URL).map {
         val inputStream = URL(it).openStream()
         return@map JsonReader(InputStreamReader(inputStream, "UTF-8"))
     }
         .flatMap { jsonReader ->
-            return@flatMap Observable.create<List<LatLng>> { emitter ->
+            return@flatMap Observable.create<PolylineModel> { emitter ->
                 with(jsonReader) {
                     while (hasNext()) {
                         if (peek() == JsonToken.BEGIN_OBJECT) {
@@ -50,7 +50,7 @@ class DownloadCoordinatesManager {
                                                 }
                                                 endArray()
                                                 endArray()
-                                                emitter.onNext(polyline)
+                                                emitter.onNext(PolylineModel(polyline))
                                             }
                                             endArray()
                                         } else {
