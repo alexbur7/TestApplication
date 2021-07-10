@@ -3,17 +3,16 @@ package com.example.testapplication
 import android.graphics.Color
 import android.os.Bundle
 import android.os.Parcelable
-import android.util.Log
-import android.view.View
 import android.widget.Button
 import android.widget.ProgressBar
+import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.os.bundleOf
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.PolylineOptions
+import com.google.maps.android.SphericalUtil
 import io.reactivex.Observer
 import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.disposables.Disposable
@@ -24,6 +23,7 @@ class MainActivity:AppCompatActivity(),OnMapReadyCallback {
 
     private companion object{
         const val MULTI_POLYLINE_KEY = "multi_polyline_key"
+        const val DISTANCE_KEY = "distance_key"
     }
     private var progressBar:ProgressBar? = null
     private var restartButton:Button? = null
@@ -31,13 +31,16 @@ class MainActivity:AppCompatActivity(),OnMapReadyCallback {
     private val observable by lazy { DownloadCoordinatesManager().createObservable() }
     private var disposable:Disposable? = null
     private val multiPolyline = mutableListOf<PolylineModel>()
+    private var distance:Double = 0.0
+    private var distanceText:TextView? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.main_activity)
         if (savedInstanceState != null){
             savedInstanceState.getParcelableArrayList<PolylineModel>(MULTI_POLYLINE_KEY)
-                ?.let { multiPolyline.addAll(it.toMutableList()) }
+                ?.let { multiPolyline.addAll(it.toMutableList())}
+            distance = savedInstanceState.getDouble(DISTANCE_KEY)
         }
         val mapFragment = supportFragmentManager
             .findFragmentById(R.id.map) as SupportMapFragment
@@ -45,10 +48,11 @@ class MainActivity:AppCompatActivity(),OnMapReadyCallback {
         progressBar = findViewById(R.id.progress_circular)
         restartButton = findViewById(R.id.restart_download)
         restartButton?.setOnClickListener {
-            progressBar?.visibility = View.VISIBLE
-            it.visibility = View.GONE
+            progressBar?.show()
+            it.gone()
             downloadData()
         }
+        distanceText = findViewById(R.id.distance_text)
     }
 
     override fun onMapReady(googleMap: GoogleMap) {
@@ -57,7 +61,11 @@ class MainActivity:AppCompatActivity(),OnMapReadyCallback {
             downloadData()
         }
         else{
-            progressBar?.visibility = View.GONE
+            distanceText?.run{
+                show()
+                text = distance.toString()
+            }
+            progressBar?.gone()
             multiPolyline.forEach { polylineModel ->
                 drawMap(polylineModel)
             }
@@ -75,24 +83,30 @@ class MainActivity:AppCompatActivity(),OnMapReadyCallback {
         object : Observer<PolylineModel>{
             override fun onNext(data: PolylineModel) {
                 drawMap(data)
+                distance += SphericalUtil.computeLength(data.coordinates)/1000
                 multiPolyline.add(data)
             }
 
             override fun onError(e: Throwable) {
-                progressBar?.visibility = View.GONE
-                restartButton?.visibility = View.VISIBLE
+                distance = 0.0
+                multiPolyline.clear()
+                progressBar?.gone()
+                restartButton?.show()
                 Toast.makeText(this@MainActivity,this@MainActivity.
                             getString(R.string.no_internet),Toast.LENGTH_SHORT ).show()
             }
 
             override fun onComplete() {
-                progressBar?.visibility = View.GONE
+                progressBar?.gone()
+                distanceText?.run {
+                    show()
+                    text = distance.toString()
+                }
             }
 
             override fun onSubscribe(d: Disposable) {
                 disposable = d
             }
-
         }
 
     private fun drawMap(data: PolylineModel) {
@@ -108,6 +122,7 @@ class MainActivity:AppCompatActivity(),OnMapReadyCallback {
         super.onSaveInstanceState(outState)
         outState.putParcelableArrayList(MULTI_POLYLINE_KEY , multiPolyline
                 as ArrayList<out Parcelable>)
+        outState.putDouble(DISTANCE_KEY, distance)
     }
     override fun onDestroy() {
         super.onDestroy()
